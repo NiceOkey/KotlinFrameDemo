@@ -1,0 +1,119 @@
+
+
+# Walle : 美团多渠道打包工具
+# https://github.com/Meituan-Dianping/walle
+
+1, 配置插件
+    a.walle {
+        // 指定渠道包的输出路径
+        apkOutputFolder = new File("${project.buildDir}/outputs/channels");
+        // 定制渠道包的APK的文件名称
+        apkFileNameFormat = '${appName}-${packageName}-${channel}-${buildType}-v${versionName}-${versionCode}-${buildTime}.apk';
+        // 渠道配置文件
+        channelFile = new File("${project.getProjectDir()}/channel")
+        // 渠道&额外信息配置文件，与channelFile互斥
+        configFile = new File("${project.getProjectDir()}/config.json")
+    }
+
+    b.apkFileNameFormat可使用以下变量:
+        projectName - 项目名字
+        appName - App模块名字
+        packageName - applicationId (App包名packageName)
+        buildType - buildType (release/debug等)
+        channel - channel名称 (对应渠道打包中的渠道名字)
+        versionName - versionName (显示用的版本号)
+        versionCode - versionCode (内部版本号)
+        buildTime - buildTime (编译构建日期时间)
+        fileSHA1 - fileSHA1 (最终APK文件的SHA1哈希值)
+        flavorName - 编译构建 productFlavors 名
+
+    c.channelFile内容格式:
+        meituan     # 美团
+        samsungapps #三星
+        xiaomi      # 小米
+
+    d.configFile内容格式:
+        {
+          //extraInfo 不要出现以`channel`为key的情况
+          /*
+          不声明extraInfo的channel默认使用的extraInfo
+          如果没有此项则没有默认extraInfo
+          */
+          "defaultExtraInfo": {
+            "key2": "20161213",
+            "key": "20161212"
+          },
+
+          /*
+            strategy:
+             1. ifNone (默认适用此策略) : 仅当对应channel没有extraInfo时生效
+             2. always : 所有channel都生效，channel中extraInfo的key与defaultExtraInfo重复时，覆盖defaultExtraInfo中的内容。
+           */
+          //"defaultExtraInfoStrategy": "always",
+
+          "channelInfoList": [
+              {
+                "channel": "meituan",
+                // 此channel将使用自己声明的extraInfo
+                /*
+                此alias可以做到写入apk的channel是meituan，而打包时输出的文件名是美团
+                注意：alias不声明时，walle配置apkFileNameFormat中channel就是channel，否则为alias
+                */
+                "alias": "美团",
+                "extraInfo": {
+                  "buildtime": "20161212",
+                  "hash": "123"
+                }
+              },
+              {
+                "channel": "360cn",
+                // 此channel将使用自己声明的extraInfo
+                "extraInfo": {
+                  "key": "20161213"
+                }
+              },
+              {
+                "channel": "googleplay"
+                // 此channel将使用defaultExtraInfo
+              },
+              {
+                "channel": "wandoujia",
+                "excludeDefaultExtraInfo": true
+                //强制声明不使用defaultExtraInfo，默认false
+              },
+              {
+                "channel": "myapp",
+                "excludeDefaultExtraInfo": true,
+                //强制声明不使用defaultExtraInfo，默认false
+                "extraInfo": {
+                  // 尽管exclude default，但也可以继续写入自己的。
+                  "key": "20161212"
+                }
+              }
+            ]
+          }
+
+2, 获取渠道信息
+    a. 使用的是channelFile
+        String channel = WalleChannelReader.getChannel(this.getApplicationContext());
+    b. 使用的是configFile
+        ChannelInfo channelInfo= WalleChannelReader.getChannelInfo(this.getApplicationContext());
+        if (channelInfo != null) {
+            String channel = channelInfo.getChannel();
+            Map<String, String> extraInfo = channelInfo.getExtraInfo();
+        }
+        // 或者也可以直接根据key获取
+        String value = WalleChannelReader.get(context, "buildtime");
+
+3, 生成渠道包
+    a. 命令: ./gradlew clean assembleReleaseChannels
+    b. 支持 productFlavors: ./gradlew clean assembleMeituanReleaseChannels
+
+4, 临时生成某渠道包
+    注意: -PchannelList,-PchannelFile, -PconfigFile三者不可同时使用
+
+    a. 生成单个渠道包: ./gradlew clean assembleReleaseChannels -PchannelList=meituan
+    b. 生成多个渠道包: ./gradlew clean assembleReleaseChannels -PchannelList=meituan,dianping
+    c. 生成渠道包&写入额外信息: ./gradlew clean assembleReleaseChannels -PchannelList=meituan -PextraInfo=buildtime:20161212,hash:xxxxxxx
+    d. 使用临时channelFile生成渠道包: ./gradlew clean assembleReleaseChannels -PchannelFile=/Users/xx/Documents/channel
+    e. 使用临时configFile生成渠道包: ./gradlew clean assembleReleaseChannels -PconfigFile=/Users/xx/Documents/config.json
